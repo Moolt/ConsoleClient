@@ -1,4 +1,3 @@
-using System;
 
 namespace UnityConsoleClient
 {
@@ -6,23 +5,20 @@ namespace UnityConsoleClient
     {
         static void Main(string[] args)
         {
-            string ip;
-            int port;
+            ConsoleClient client;
 
             if(args.Length == 2)
             {
-                ip = args[0];
-                int.TryParse(args[1], out port);
+                var ip = args[0];
+                int.TryParse(args[1], out int port);
+                client = new ConsoleClient(ip, port);
             }
             else
             {
-                Console.Write("IP: ");
-                ip = Console.ReadLine();
-                Console.Write("Port: ");
-                int.TryParse(Console.ReadLine(), out port);
+                client = new ConsoleClient();
             }
-            var consoleClient = new ConsoleClient(ip, port);
-            consoleClient.StartClient();
+
+            client.StartClient();
         }        
     }
 }

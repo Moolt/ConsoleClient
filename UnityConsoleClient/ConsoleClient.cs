@@ -2,11 +2,14 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace UnityConsoleClient
 {
     public class ConsoleClient
     {
+        private bool connectionHasBeenEstablishedOnce = false;
+        private bool openedWithExplicitParameters;
         private string _ip;
         private int _port;
 
@@ -14,48 +17,97 @@ namespace UnityConsoleClient
         {
             _ip = ip;
             _port = port;
+            openedWithExplicitParameters = true;
+        }
+
+        public ConsoleClient()
+        {
+            openedWithExplicitParameters = false;
         }
 
         public void StartClient()
         {
-            try
+            bool exited = false;
+
+            while (!exited)
             {
-                HandleServerCommunication();
-                Console.WriteLine("Connection to server lost...");
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-                Console.ReadKey();
+                if(!connectionHasBeenEstablishedOnce && !openedWithExplicitParameters)
+                {
+                    AskForInfo();
+                }
+
+                try
+                {
+                    exited = HandleServerCommunication();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.Message);
+
+                    if(connectionHasBeenEstablishedOnce)
+                    {
+                        Console.WriteLine("Connection to server lost.");
+                    }
+
+                    if (openedWithExplicitParameters)
+                    {
+                        if(!connectionHasBeenEstablishedOnce)
+                        {
+                            Console.WriteLine("Could not connect to the server. Please check the ip and port.");
+                        }
+                        Console.ReadKey();
+                        exited = true;
+                    }
+                    else if(connectionHasBeenEstablishedOnce)
+                    {
+                        Thread.Sleep(500);
+                        Console.WriteLine("Attempting to reconnect...");
+                        Thread.Sleep(5000);
+                    }
+                }
             }
         }
 
-        private void HandleServerCommunication()
+        private void AskForInfo()
+        {
+            Console.Write("IP: ");
+            _ip = Console.ReadLine();
+            Console.Write("Port: ");
+            int.TryParse(Console.ReadLine(), out _port);
+        }
+
+        private bool HandleServerCommunication()
         {
             Console.WriteLine("Attempting to connect to server...");
-            var client = new TcpClient(_ip, _port);
-            Console.WriteLine("Server connection established.");
-            Console.WriteLine();
 
-            var reader = new StreamReader(client.GetStream());
-            var writer = new StreamWriter(client.GetStream());
-
-            //Print already existing output
-            HandleResponse(reader);
-
-            var input = string.Empty;
-            while (input != "exit" && client.Connected)
+            using (var client = new TcpClient(_ip, _port))
             {
-                Console.Write("> ");
-                input = Console.ReadLine();
-                writer.WriteLine(input);
-                writer.Flush();
+                connectionHasBeenEstablishedOnce = true;
+                Console.WriteLine("Server connection established.");
+                Console.WriteLine();
 
-                HandleResponse(reader);
+                client.ReceiveTimeout = 1000;
+                client.SendTimeout = 1000;
+
+                using (var writer = new StreamWriter(client.GetStream()))
+                using (var reader = new StreamReader(client.GetStream()))
+                {
+                    //Print already existing output
+                    HandleResponse(reader);
+
+                    var input = string.Empty;
+                    while (input != "exit" && client.Connected)
+                    {
+                        Console.Write("> ");
+                        input = Console.ReadLine();
+                        writer.WriteLine(input);
+                        writer.Flush();
+
+                        HandleResponse(reader);
+                    }
+                }
             }
-            reader.Close();
-            writer.Close();            
-            client.Close();
+            return true;
         }
 
         private void HandleResponse(StreamReader reader)
@@ -87,7 +139,7 @@ namespace UnityConsoleClient
 
             foreach (string line in lines)
             {
-                if(ColorCodes.IsColorCoded(line))
+                if (ColorCodes.IsColorCoded(line))
                 {
                     var strippedLine = line;
                     Console.ForegroundColor = ColorCodes.ExtractColor(ref strippedLine);
@@ -97,7 +149,7 @@ namespace UnityConsoleClient
                 else
                 {
                     Console.WriteLine(line);
-                }                
+                }
             }
         }
     }
