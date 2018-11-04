@@ -31,7 +31,7 @@ namespace UnityConsoleClient
                 return _mapping[messageType];
             }
 
-            return ConsoleColor.White;
+            return Console.ForegroundColor;            
         }
     }
 }
