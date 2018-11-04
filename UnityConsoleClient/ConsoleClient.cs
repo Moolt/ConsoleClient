@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace UnityConsoleClient
 {
@@ -10,6 +11,7 @@ namespace UnityConsoleClient
     {
         private bool connectionHasBeenEstablishedOnce = false;
         private bool openedWithExplicitParameters;
+        private bool tryingToReconnect = false;
         private string _ip;
         private int _port;
 
@@ -25,44 +27,44 @@ namespace UnityConsoleClient
             openedWithExplicitParameters = false;
         }
 
-        public void StartClient()
+        public async Task StartClient()
         {
             bool exited = false;
 
             while (!exited)
             {
-                if(!connectionHasBeenEstablishedOnce && !openedWithExplicitParameters)
+                if (!connectionHasBeenEstablishedOnce && !openedWithExplicitParameters)
                 {
                     AskForInfo();
                 }
 
                 try
                 {
-                    exited = HandleServerCommunication();
+                    exited = await HandleServerCommunication();
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e.Message);
+                    WriteLineIf(!tryingToReconnect, e.Message);
 
-                    if(connectionHasBeenEstablishedOnce)
+                    if (connectionHasBeenEstablishedOnce)
                     {
-                        Console.WriteLine("Connection to server lost.");
+                        WriteLineIf(!tryingToReconnect, "Connection to server lost.");
                     }
 
                     if (openedWithExplicitParameters)
                     {
-                        if(!connectionHasBeenEstablishedOnce)
+                        if (!connectionHasBeenEstablishedOnce)
                         {
-                            Console.WriteLine("Could not connect to the server. Please check the ip and port.");
+                            WriteLineIf(!tryingToReconnect, "Could not connect to the server. Please check the ip and port.");
                         }
                         Console.ReadKey();
                         exited = true;
                     }
-                    else if(connectionHasBeenEstablishedOnce)
+                    else if (connectionHasBeenEstablishedOnce)
                     {
-                        Thread.Sleep(500);
-                        Console.WriteLine("Attempting to reconnect...");
-                        Thread.Sleep(5000);
+                        WriteLineIf(!tryingToReconnect, "Attempting to reconnect...");
+                        tryingToReconnect = true;
+                        Thread.Sleep(1000);
                     }
                 }
             }
@@ -76,14 +78,15 @@ namespace UnityConsoleClient
             int.TryParse(Console.ReadLine(), out _port);
         }
 
-        private bool HandleServerCommunication()
+        private Task<bool> HandleServerCommunication()
         {
-            Console.WriteLine("Attempting to connect to server...");
+            WriteLineIf(!tryingToReconnect, "Attempting to connect to server...");
 
             using (var client = new TcpClient(_ip, _port))
             {
                 connectionHasBeenEstablishedOnce = true;
-                Console.WriteLine("Server connection established.");
+                tryingToReconnect = false;
+                WriteLineIf(!tryingToReconnect, "Server connection established.");
                 Console.WriteLine();
 
                 client.ReceiveTimeout = 1000;
@@ -107,7 +110,7 @@ namespace UnityConsoleClient
                     }
                 }
             }
-            return true;
+            return Task.FromResult(true);
         }
 
         private void HandleResponse(StreamReader reader)
@@ -150,6 +153,22 @@ namespace UnityConsoleClient
                 {
                     Console.WriteLine(line);
                 }
+            }
+        }
+
+        private void WriteLineIf(bool condition, string text)
+        {
+            if (condition)
+            {
+                Console.WriteLine(text);
+            }
+        }
+
+        private void WriteIf(bool condition, string text)
+        {
+            if (condition)
+            {
+                Console.Write(text);
             }
         }
     }

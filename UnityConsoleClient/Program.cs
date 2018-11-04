@@ -18,7 +18,7 @@ namespace UnityConsoleClient
                 client = new ConsoleClient();
             }
 
-            client.StartClient();
+            client.StartClient().ConfigureAwait(true);
         }        
     }
 }
